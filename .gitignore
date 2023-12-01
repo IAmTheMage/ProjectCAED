@@ -1,0 +1,6 @@
+dataset/
+*.pth
+*.json
+*.csv
+
+__pycache__/
