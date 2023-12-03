@@ -12,12 +12,10 @@ Original file is located at
 import math
 import torch
 import torch.nn as nn
-import torchtext
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from torchtext.data.utils import get_tokenizer
 from torchtext.vocab import build_vocab_from_iterator
 
 from model_defs import TextIter, Embeddings, PositionalEncoding, SingleHeadAttention,  MultiHeadAttention, LayerNorm, ResidualConnection, FeedForward

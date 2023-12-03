@@ -88,24 +88,29 @@ class Dependency:
         return False
     
     def mount(self):
-        if "det" in self.doc[0].pos_.lower():
-            print("Mounting tree type 2")
-            self.print_dependencies()
-            self._mount_2()
+        #print(f'Data: {self.has_subject}, {self.phrase_has(self.doc, "dep_", "appos")}, {self.phrase_has(self.doc, "dep_", "flat:name")}')
+        ret = ""
+        if self.has_subject and self.phrase_has(self.doc, "dep_", "appos"):
+            ret = self._mount_4()
+            print()
+        elif "det" in self.doc[0].pos_.lower():
+            ret = self._mount_2()
         
         elif "adp" in self.doc[0].pos_.lower() or "adv" in self.doc[0].pos_.lower():
-            print("Mounting tree type 1")
-            self._mount_1()
+            ret = self._mount_1()
         
         elif self.has_subject == False:
             if "verb" in self.doc[0].pos_.lower() and self.has_subject == False:
-                print("Mounting tree type 1 adapted")
-                self._mount_1_adapted()
+                ret = self._mount_1_adapted()
             else:
-                self._mount_3()
+                ret = self._mount_3()
         
         else:
+            print("Não foi encontrado uma heuristica capaz de resolver esse problema")
             self.print_dependencies()
+            pass
+
+        return self.gramatical_corrector(ret)
 
     
     def find_lemma(self, token,verbs, doc, aspect = None):
@@ -144,6 +149,9 @@ class Dependency:
 
         verbs = None
         current = 0
+        if not 'data' in find:
+            return None
+        
         for element in find['data']:
             s_value = 0
             if len(element['tense']) > 0 and element['tense'][0] == self.auxiliary_tense:
@@ -238,6 +246,17 @@ class Dependency:
             index += 1
         
         return position
+    
+    def determine_positions(self, doc, tag, property_1):
+        position = []
+        index = 0
+        cursor = 0
+        for item in doc:
+            if tag in getattr(item, property_1).lower():
+                position.append(index)
+            index += 1
+        
+        return position
 
     def reversion_after(self, cut_after) -> str:
         first_phase = []
@@ -270,14 +289,14 @@ class Dependency:
         reversed_txt = self.reversion_after(cut_after)
         reversed_doc = nlp(reversed_txt)
         reversed_sanitized = self.removeIf(reversed_doc, "pos_", "punc")
-        print(self.getText(reversed_sanitized))
+        return self.getText(reversed_sanitized)
 
     def _mount_1_adapted(self):
         aux_position = self._determine_positions("aux", "pos_")[0]
         reversed_txt = self.reversion_after(aux_position)
         reversed_doc = nlp(reversed_txt)
         reversed_sanitized = self.removeIf(reversed_doc, "pos_", "punc")
-        print(self.getText(reversed_sanitized))
+        return self.getText(reversed_sanitized)
 
 
     def generate_alternatives(self, original = [], changes = [], changes_position = []):
@@ -335,11 +354,31 @@ class Dependency:
         
         return txt
 
+    def phrase_has(self, doc, attribute, value) -> bool:
+        for element in doc:
+            if value in getattr(element, attribute).lower():
+                return True
+        return False
+    
+    def swap_by_tag(self, base_doc, tag_1, value_1, tag_2, value_2):
+        position_1 = self._determine_positions(tag_1, value_1)[0]
+        position_2 = self._determine_positions(tag_2, value_2)[0]
+
+        neo_doc = list(base_doc)
+        neo_doc[position_1], neo_doc[position_2] = neo_doc[position_2], neo_doc[position_1]
+
+        return neo_doc
+    
+    def change_position(self, doc: list, current_position, new_position):
+        neo_doc = list(doc)
+        popped_item = neo_doc.pop(current_position)
+        neo_doc.insert(new_position, popped_item)
+        return neo_doc
         
 
     
     def _mount_2(self):
-        print("Mounting 2 {}".format(self.auxiliary_tense))
+        #print("Mounting 2 {}".format(self.auxiliary_tense))
         tmp = ""
         verbs = ""
         current_verb = ""
@@ -351,11 +390,14 @@ class Dependency:
         swapped_description = nlp(swaped)
         neo_swap = self.swap(swapped_description, "det", "adp", "pos_", "tag_")
         swapped_description = nlp(swaped)
-        
+        has_not_lemma = True
         if self.passive_voice:
             for token in self.doc:
                 if "VERB" in token.tag_.upper():
                     verbs = self.find_lemma(token.text, token.morph.get('Tense'), token, "Fin")
+                    #print(f"Verbs: {verbs}")
+                    if verbs != None:
+                        has_not_lemma = False
                     current_verb = token.text
                     #print(verbs)
                 elif "adp" in token.tag_.lower():
@@ -365,10 +407,13 @@ class Dependency:
                     det = token.text
                 if index == 2:
                     break
+
+        #print(f"Lemma size: {verbs['word']}")
         neo_swap = neo_swap.replace(adp, self.get_adp_gender(adp).upper())   
         neo_swap = neo_swap.replace(det, det.lower())    
-        neo_swap = neo_swap.replace(current_verb, verbs['word'])     
-        print(neo_swap)
+        if has_not_lemma == False:
+            neo_swap = neo_swap.replace(current_verb, verbs['word'])  
+        return neo_swap
 
     def _mount_3(self):
         root_position = self._determine_positions("root", "dep_")[0]
@@ -377,32 +422,79 @@ class Dependency:
         reversed_txt = self.reversion_after(cut_after)
         reversed_doc = nlp(reversed_txt)
         reversed_sanitized = self.removeIf(reversed_doc, "pos_", "punc")
-        print(self.getText(reversed_sanitized))
+        return self.getText(reversed_sanitized)
+
+    def gramatical_corrector(self, sentence: str):
+        neo_sentence = ""
+        sentence_tokens = nlp(sentence)
+        index = 0
+        for token in sentence_tokens:
+            if token.dep_ == "flat:name" or index == 0:
+                neo_sentence += token.text.capitalize()
+            else:
+                neo_sentence += token.text.lower()
+            
+            if(token.pos_ != "PUNCT"):
+                neo_sentence += " "
+            index += 1
         
+        return neo_sentence
+
+
+    def _mount_4(self):
+        #if self._determine_positions("appos", "dep_")[0] == self._determine_positions("flat:name", "dep_")[0] - 1:
+        #print("Mounting 4")
+        #self.print_dependencies()
+        first_swap = self.swap_by_tag(self.doc, "det", "pos_", "appos", "dep_")
+        second_swap = first_swap
+        _position_det = self.determine_positions(second_swap, "det", "pos_")[0]
+        if self.phrase_has(self.doc, "dep_", "flat:name"):
+            second_swap = self.swap_by_tag(first_swap, "nsubj", "dep_", "flat:name", "dep_")
+        else:
+            second_swap = self.change_position(second_swap, self.determine_positions(second_swap, "nsubj", "dep_")[0], _position_det)
         
+        position_nsubj = self.determine_positions(second_swap, "nsubj", "dep_")[0]
+        position_det = self.determine_positions(second_swap, "det", "pos_")[0]
+        first_str = ""
+        index = 0
+        for elem in second_swap:
+            first_str += elem.text
+            if(index == position_det - 1 or index == position_nsubj):
+                first_str += ","
+            else:
+                first_str += " "
+            index += 1
+        return first_str
 
+# Função para verificar se uma frase está invertida
+def is_inverted(sentence):
+    # Se a frase terminar com "=>" é considerada invertida
+    return sentence.strip().endswith("=>")
+# Nome do arquivo com as frases
+file_name = 'sentences.txt'
 
+# Listas para armazenar frases normais e invertidas
+normal_phrases = []
+inverted_phrases = []
 
-dependency = Dependency("O texto foi lido pelo aluno")
-dependency.mount()
+# Leitura do arquivo e separação das frases e suas inversas
+with open(file_name, 'r') as file:
+    lines = file.readlines()
 
-dependency2 = Dependency("O texto foi lido pela aluna")
-dependency2.mount()
+    for line in lines:
+        # Remover quebras de linha e espaços extras
+        line = line.strip()
+        
+        # Dividir a frase e sua inversa quando encontrar "=>"
+        parts = line.split('=>')
+        
+        if len(parts) == 2:
+            # Adicionar a frase normal e a invertida às listas correspondentes
+            normal_phrases.append(parts[0].strip())
+            inverted_phrases.append(parts[1].strip())
 
-dependency3 = Dependency("O filme foi assistido pelo pai")
-dependency3.mount()
-
-dependency4 = Dependency("No ano passado, eu viajei para a Europa")
-dependency4.mount()
-
-dependency4 = Dependency("No ano passado, o Gustavo viajou para a Europa")
-dependency4.mount()
-
-dependency5 = Dependency("Na festa, eles estavam dançando salsa")
-dependency5.mount()
-
-dependency5 = Dependency("Há duas semanas atrás estava chovendo")
-dependency5.mount()
-
-dependency6 = Dependency("Na prática, isto resume-se na multiplicação distributiva")
-dependency6.mount()
+for i in range(len(normal_phrases)):
+    print(f"Frase normal: {normal_phrases[i]}")
+    print(f"Frase invertida esperada: {inverted_phrases[i]}")
+    dependency = Dependency(normal_phrases[i])
+    print(f"Frase invertida obtida: {dependency.mount()}")
