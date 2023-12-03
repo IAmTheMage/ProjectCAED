@@ -23,7 +23,9 @@ from model_defs import SingleEncoder, EncoderBlocks
 
 MODE='TRAIN'
 
-device = torch.device("cuda")
+use_cuda = torch.cuda.is_available()
+
+device = torch.device("cuda" if use_cuda else "cpu")
 
 file_name = 'data.csv'
 
@@ -160,7 +162,7 @@ class TransformerEncoderModel(nn.Module):
         x = self.classifier(x)
         return x
 
-device = torch.device("cuda")
+device = torch.device("cuda" if use_cuda else "cpu")
 model = TransformerEncoderModel(len(vocab), d_model=300, nhead=4, d_ff=50,
                                     N=6, dropout=0.1).to(device)
 
