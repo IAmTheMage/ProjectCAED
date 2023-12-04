@@ -1,0 +1,8 @@
+Epochs: 1 | Train Loss:  0.199 | Train Accuracy:  0.700 | Val Loss:  0.166 | Val Accuracy:  0.738
+Epochs: 2 | Train Loss:  0.136 | Train Accuracy:  0.793 | Val Loss:  0.112 | Val Accuracy:  0.837
+Epochs: 3 | Train Loss:  0.104 | Train Accuracy:  0.850 | Val Loss:  0.100 | Val Accuracy:  0.858
+Epochs: 4 | Train Loss:  0.080 | Train Accuracy:  0.891 | Val Loss:  0.096 | Val Accuracy:  0.864
+Epochs: 5 | Train Loss:  0.062 | Train Accuracy:  0.917 | Val Loss:  0.101 | Val Accuracy:  0.854
+Test Accuracy:  0.852
+
+BERT_MULTILINGUAL

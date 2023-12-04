@@ -38,7 +38,9 @@ def load_from_file(file_name):
         return data
 
 
-
+'''
+Código para inversão de frases, _mount_1 equivale a primeira Heuristica, _mount_2 a terceira, _mount_3 a segunda e _mount_4 a quarta
+'''
 class Dependency:
     def __init__(self, text): 
         self.doc = nlp(text)
@@ -114,14 +116,8 @@ class Dependency:
 
     
     def find_lemma(self, token,verbs, doc, aspect = None):
-        _aspect = doc.morph.get("VerbForm")
-        _tense = doc.morph.get("Tense")
         _person = doc.morph.get("Person")
         _number = doc.morph.get("Number")
-        _voice = doc.morph.get("Voice")
-        _mood = doc.morph.get("Mood")
-        _aux = doc.morph.get("Aux")
-        _reflex = doc.morph.get("Reflex")
         # print(f"Text: {token}")
         # if _aspect is not None:
         #     print(f"Aspect: {_aspect}")
@@ -173,6 +169,7 @@ class Dependency:
             return ""
         return token[len(token) - 1]
 
+    #Função para gerar o dicionário(lemms.json)
     def generate_verbs_dict(self):
 
         file_name = 'lemms.json'
@@ -465,36 +462,3 @@ class Dependency:
                 first_str += " "
             index += 1
         return first_str
-
-# Função para verificar se uma frase está invertida
-def is_inverted(sentence):
-    # Se a frase terminar com "=>" é considerada invertida
-    return sentence.strip().endswith("=>")
-# Nome do arquivo com as frases
-file_name = 'sentences.txt'
-
-# Listas para armazenar frases normais e invertidas
-normal_phrases = []
-inverted_phrases = []
-
-# Leitura do arquivo e separação das frases e suas inversas
-with open(file_name, 'r') as file:
-    lines = file.readlines()
-
-    for line in lines:
-        # Remover quebras de linha e espaços extras
-        line = line.strip()
-        
-        # Dividir a frase e sua inversa quando encontrar "=>"
-        parts = line.split('=>')
-        
-        if len(parts) == 2:
-            # Adicionar a frase normal e a invertida às listas correspondentes
-            normal_phrases.append(parts[0].strip())
-            inverted_phrases.append(parts[1].strip())
-
-for i in range(len(normal_phrases)):
-    print(f"Frase normal: {normal_phrases[i]}")
-    print(f"Frase invertida esperada: {inverted_phrases[i]}")
-    dependency = Dependency(normal_phrases[i])
-    print(f"Frase invertida obtida: {dependency.mount()}")

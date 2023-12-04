@@ -144,3 +144,27 @@ class EncoderBlocks(nn.Module):
         for layer in self.layers:
             x = layer(x)
         return self.norm(x)
+    
+
+class TransformerEncoderModel(nn.Module):
+    def __init__(self, vocab_size, d_model, nhead, d_ff, N,
+                dropout=0.1):
+        super().__init__()
+        assert d_model % nhead == 0, "nheads must divide evenly into d_model"
+
+        self.emb = Embeddings(d_model, vocab_size)
+        self.pos_encoder = PositionalEncoding(d_model=d_model, vocab_size=vocab_size)
+
+        attn = MultiHeadAttention(nhead, d_model)
+        ff = FeedForward(d_model, d_ff, dropout)
+        self.transformer_encoder = EncoderBlocks(SingleEncoder(d_model, attn, ff, dropout), N)
+        self.classifier = nn.Linear(d_model, 4)
+        self.d_model = d_model
+
+    def forward(self, x):
+        x = self.emb(x) * math.sqrt(self.d_model)
+        x = self.pos_encoder(x)
+        x = self.transformer_encoder(x)
+        x = x.mean(dim=1)
+        x = self.classifier(x)
+        return x

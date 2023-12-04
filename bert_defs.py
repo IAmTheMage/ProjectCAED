@@ -6,7 +6,12 @@ from torch import nn
 from torch.optim import Adam
 from tqdm import tqdm
 import time
-
+tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+labels = {'Ensino Fundamental 1':0,
+        'Ensino Fundamental 2':1,
+        'Ensino Médio':2,
+        'Ensino Superior':3,
+        }
 
 class Dataset(torch.utils.data.Dataset):
 

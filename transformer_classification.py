@@ -19,7 +19,7 @@ from tqdm import tqdm
 from torchtext.vocab import build_vocab_from_iterator
 
 from model_defs import TextIter, Embeddings, PositionalEncoding, SingleHeadAttention,  MultiHeadAttention, LayerNorm, ResidualConnection, FeedForward
-from model_defs import SingleEncoder, EncoderBlocks
+from model_defs import SingleEncoder, EncoderBlocks, TransformerEncoderModel
 
 MODE='TRAIN'
 
@@ -30,21 +30,20 @@ device = torch.device("cuda" if use_cuda else "cpu")
 file_name = 'data.csv'
 
 
-if MODE == 'TRAIN':
-    df = pd.read_csv(file_name, encoding='utf-8')
-    df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
-    df_train['Category'].astype(str)
-    df_train['Message'].astype(str)
-    df_test['Category'].astype(str)
-    df_test['Message'].astype(str)
-    #print(df_train.head())
+df = pd.read_csv(file_name, encoding='utf-8')
+df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
+df_train['Category'].astype(str)
+df_train['Message'].astype(str)
+df_test['Category'].astype(str)
+df_test['Message'].astype(str)
+#print(df_train.head())
 
-    labels = df_train["Category"].unique()
-    num_labels = len(labels)
-    label2id, id2label = dict(), dict()
-    for i, label in enumerate(labels):
-        label2id[label] = i
-        id2label[i] = label
+labels = df_train["Category"].unique()
+num_labels = len(labels)
+label2id, id2label = dict(), dict()
+for i, label in enumerate(labels):
+    label2id[label] = i
+    id2label[i] = label
 
 
 #print(id2label)
@@ -139,28 +138,6 @@ output_res_conn_2 = res_conn_2(output_res_conn_1, output_ff)
 
 """# Transformer Encoder Model"""
 
-class TransformerEncoderModel(nn.Module):
-    def __init__(self, vocab_size, d_model, nhead, d_ff, N,
-                dropout=0.1):
-        super().__init__()
-        assert d_model % nhead == 0, "nheads must divide evenly into d_model"
-
-        self.emb = Embeddings(d_model, vocab_size)
-        self.pos_encoder = PositionalEncoding(d_model=d_model, vocab_size=vocab_size)
-
-        attn = MultiHeadAttention(nhead, d_model)
-        ff = FeedForward(d_model, d_ff, dropout)
-        self.transformer_encoder = EncoderBlocks(SingleEncoder(d_model, attn, ff, dropout), N)
-        self.classifier = nn.Linear(d_model, 4)
-        self.d_model = d_model
-
-    def forward(self, x):
-        x = self.emb(x) * math.sqrt(self.d_model)
-        x = self.pos_encoder(x)
-        x = self.transformer_encoder(x)
-        x = x.mean(dim=1)
-        x = self.classifier(x)
-        return x
 
 device = torch.device("cuda" if use_cuda else "cpu")
 model = TransformerEncoderModel(len(vocab), d_model=300, nhead=4, d_ff=50,
@@ -203,15 +180,7 @@ def collate_fn(batch):
     return torch.tensor(sequences, dtype=torch.long), torch.tensor(labels, dtype=torch.long)
 
 """# Model Training"""
-def save_vector_to_file(vector, file_name):
-    print("SAVING VECTOR")
-    with open(file_name, 'a+') as file:
-        for element in vector:
-            file.write(str(element) + '\n')
 
-
-loss_vec = []
-accuracy_vec = []
 def train(model, dataset, epochs, lr, bs):
 
     criterion = nn.CrossEntropyLoss()
@@ -241,12 +210,10 @@ def train(model, dataset, epochs, lr, bs):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
             optimizer.step()
-        loss_vec.append(total_loss_train)
-        accuracy_vec.append(total_acc_train)
         print(f'Epochs: {epoch + 1} | Loss: {total_loss_train / len(train_dataset): .3f} | Accuracy: {total_acc_train / len(train_dataset): .3f}')
 
 
-def predict(text):
+def predict(text, model):
     sequence = torch.tensor([vocab[word] for word in word_tokenize(text, language='portuguese')], dtype=torch.long).unsqueeze(0)
     output = model(sequence.to(device))
     prediction = id2label[output.argmax(axis=1).item()]
@@ -254,45 +221,34 @@ def predict(text):
     return prediction
 
 if __name__ == '__main__': 
-    if MODE == 'TRAIN':
-        epochs = 30
-        lr = 1e-4
-        batch_size = 4
-        train(model, df_train, epochs, lr, batch_size)
-        path = 'model.pth'
+    epochs = 30
+    lr = 1e-4
+    batch_size = 4
+    train(model, df_train, epochs, lr, batch_size)
+    path = 'model.pth'
 
-        # Salvar o estado do modelo
-        torch.save(model.state_dict(), path)
+    # Salvar o estado do modelo
+    torch.save(model.state_dict(), path)
 
-        """# Model Prediction"""
+    """# Model Prediction"""
 
-    
 
-        idx = 24
-        text = df_test['Message'].values.tolist()[idx]
-        gt = df_test['Category'].values.tolist()[idx]
-        prediction = predict(text)
 
-        print(f'Text: {text}')
-        print(f'Ground Truth: {gt}')
-        print(f'Prediction: {prediction}')
+    idx = 24
+    text = df_test['Message'].values.tolist()[idx]
+    gt = df_test['Category'].values.tolist()[idx]
+    prediction = predict(text)
 
-        idx = 35
-        text = df_test['Message'].values.tolist()[idx]
-        gt = df_test['Category'].values.tolist()[idx]
-        prediction = predict(text)
+    print(f'Text: {text}')
+    print(f'Ground Truth: {gt}')
+    print(f'Prediction: {prediction}')
 
-        print(f'Text: {text}')
-        print(f'Ground Truth: {gt}')
-        print(f'Prediction: {prediction}')
-    else:
-        print("Start load model")
-        model.load_state_dict(torch.load("./model.pth"))
-        text = "Política. “Impeachment” é um termo de origem inglesa que significa impedimento. Trazido para o âmbito político, estabelece um instrumento pelo qual os regimes liberais traçam a limitação de poderes dos membros do Poder Executivo. Dessa forma, não poderíamos forjar esse tipo de recurso consolidado em governos onde haja um cenário político centralizador, como nos regimes monárquicos, totalitaristas ou ditatoriais. O impeachment foi criado no contexto político britânico medieval, onde observamos um diferenciado processo de consolidação da monarquia. Historicamente, a formação do Estado Nacional Britânico nunca veio de fato a instituir a figura de um rei que exercesse amplos poderes sob a população. Contudo, no caso inglês, o impeachment só era utilizado quando um funcionário ou ministro fazia mal uso de suas prerrogativas políticas. Além disso, o impeachment poderia acarretar em outras punições criminais. Ao longo do tempo, o impeachment britânico veio a cair em desuso e foi posteriormente substituído por outros instrumentos jurídicos. Tal transformação se deu principalmente porque as agitações políticas causadas por esse tipo de processo geravam um enorme desgaste. Dessa maneira, os britânicos resolveram substituí-lo pelo voto de censura. Nesse novo modelo, o parlamento realizava uma votação que decidia se determinado membro do Executivo era digno ou não de sua confiança. Quando algum integrante do Poder Executivo chegava a ser punido, isso indicava o desejo do parlamento em promover a substituição do acusado. Consequentemente eram realizadas novas eleições, nas quais a população viria a escolher um substituto capaz para assumir a função desocupada. Com esse novo artifício, o governo parlamentar britânico criou uma alternativa que transformava o seu impeachment em um processo bem menos impactante. Nos Estados Unidos da América, esse tipo de uso do impeachment viria a ganhar novos contornos. Geralmente, o representante político que fosse vítima de um não deveria sofrer nenhum tipo de sanção criminal. O acusado somente perdia o direito de continuar a exercer as funções atribuídas pelo seu cargo político. Apesar de nunca ter sido efetivamente utilizado contra um presidente norte-americano, alguns casos chegaram bem perto disso. No mandato de Richard Nixon (1969 – 1974), investigações comprovaram as ações de espionagem de integrantes de seu governo contra membros do partido democrata. Com isso, o Congresso Norte-Americano organizou um processo de impeachment contra Nixon. Contudo, antes disso, o próprio presidente decidiu renunciar ao cargo. Décadas mais tarde, o presidente Bill Clinton sofreu um processo de impeachment devido a um escândalo sexual. No entanto, o Senado não reconheceu a validade do processo. Em terras brasileiras esse artifício político foi utilizado contra o presidente Fernando Collor de Melo e, em certa medida, marcou a consolidação da democracia no país. Após a formação de uma Comissão Parlamentar de Inquérito (CPI), membros do Poder Legislativo comprovaram várias denúncias de corrupção contra a presidente. Com isso, mediante a votação da Câmara dos Deputados e a aprovação do Senado, Fernando Collor foi destituído do cargo e perdeu seus direitos políticos durante oito anos."
-        gt = "Ensino Fundamental 2"
-        prediction = predict(text)
+    idx = 35
+    text = df_test['Message'].values.tolist()[idx]
+    gt = df_test['Category'].values.tolist()[idx]
+    prediction = predict(text)
 
-        print(f'Text: {text}')
-        print(f'Ground Truth: {gt}')
-        print(f'Prediction: {prediction}')
+    print(f'Text: {text}')
+    print(f'Ground Truth: {gt}')
+    print(f'Prediction: {prediction}')
 
